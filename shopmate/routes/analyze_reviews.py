@@ -12,9 +12,16 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from transformers import AutoTokenizer, AutoModel
+import torch
+
+
 print("🔄 Loading models for review analysis...")
 sentiment_analyzer = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+embedding_model = AutoModel.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
 print("✅ Models loaded successfully.")
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
