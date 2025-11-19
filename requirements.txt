@@ -20,6 +20,8 @@ matplotlib==3.9.0
 Pillow==10.4.0
 textblob==0.17.1
 langdetect==1.0.9
+gunicorn==20.1.0
+
 
 # SAFE version - no Rust, no tokenizers dependency
 # transformers==4.44.2
