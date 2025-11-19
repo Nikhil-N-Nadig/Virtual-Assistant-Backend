@@ -21,16 +21,10 @@ Pillow==10.4.0
 textblob==0.17.1
 langdetect==1.0.9
 
-# Replaced sentence-transformers
 transformers==4.44.2
-tokenizers==0.19.1
 
 torch==2.5.1
 
 deep-translator==1.11.4
 google-api-python-client==2.142.0
 google-generativeai==0.7.0
-
-# Optional: if you're using config or custom packages
-# config
-# shopmate
