@@ -3,7 +3,6 @@ from shopmate import app, db, allowed_url,cross_origin,datetime
 from shopmate.models import Conversation, Message
 
 
-# ✅ Create conversation
 @app.route('/conversation', methods=['POST', 'OPTIONS'])
 @cross_origin(origins=["http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True)
 def create_conversation():

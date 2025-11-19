@@ -171,9 +171,6 @@ def generate_synthetic_history(current_price: float, category: str, days=60, see
 
     return prices
 
-# ---------------------------
-# Helpers: ML training + predict
-# ---------------------------
 def train_rf_and_predict(history, future_days=60, seed=None):
     """
     history: list of {date, price} chronological oldest->newest
@@ -210,9 +207,6 @@ def train_rf_and_predict(history, future_days=60, seed=None):
 
     return model, predictions
 
-# ---------------------------
-# Helpers: Chart generation
-# ---------------------------
 def create_price_chart_svg(history, predictions=None, title="Price Trend"):
     """
     history: list of {"date","price"} chronological

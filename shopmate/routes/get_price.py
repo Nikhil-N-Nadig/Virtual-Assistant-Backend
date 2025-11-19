@@ -56,9 +56,6 @@ def get_price():
     if not product:
         return jsonify({"success": False, "error": "Product name is required"}), 400
 
-    # -------------------------------------------------------------
-    # 1️⃣ Fetch product listings via SerpAPI GOOGLE SHOPPING only
-    # -------------------------------------------------------------
     results = search_serpapi(product)
 
     if not results:

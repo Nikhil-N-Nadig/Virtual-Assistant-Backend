@@ -58,7 +58,6 @@ def verify_reset_otp():
     if datetime.utcnow() > user.otp_expiry:
         return jsonify({'error': 'OTP expired'}), 400
 
-    # ✅ OTP is correct — mark as temporarily verified for password reset
     user.otp_verified_for_reset = True  # add this dynamically, not persisted
     db.session.commit()
 

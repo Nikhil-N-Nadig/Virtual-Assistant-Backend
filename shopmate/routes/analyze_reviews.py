@@ -12,9 +12,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# -----------------------------------------------------
-# Initialize ML models
-# -----------------------------------------------------
 print("🔄 Loading models for review analysis...")
 sentiment_analyzer = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -22,27 +19,18 @@ print("✅ Models loaded successfully.")
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
-# -----------------------------------------------------
-# Utility: Clean text
-# -----------------------------------------------------
 def clean_text(text: str) -> str:
     text = re.sub(r"http\S+|www\S+|@\S+|#\S+", "", text)
     text = re.sub(r"[^A-Za-z0-9\s.,!?']", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
-# -----------------------------------------------------
-# Translation Utility
-# -----------------------------------------------------
 def translate_text(text: str, source: str, target: str) -> str:
     try:
         return GoogleTranslator(source=source, target=target).translate(text)
     except:
         return text
 
-# -----------------------------------------------------
-# Validation — Is this a review?
-# -----------------------------------------------------
 def is_valid_review(text: str) -> bool:
     text = text.lower().strip()
 
@@ -66,9 +54,6 @@ def is_valid_review(text: str) -> bool:
 
     return True
 
-# -----------------------------------------------------
-# Semantic Filter (Quality Control)
-# -----------------------------------------------------
 reference_reviews = [
     "The product quality is great",
     "Battery life could be better",
@@ -94,9 +79,6 @@ def semantic_review_filter(comments, threshold=0.45):
             valid.append(comments[i])
     return valid
 
-# -----------------------------------------------------
-# Fetch YouTube Comments (Multiple Pages)
-# -----------------------------------------------------
 def fetch_youtube_comments(video_id, max_total=200):
     comments = []
     youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
@@ -117,9 +99,6 @@ def fetch_youtube_comments(video_id, max_total=200):
 
     return comments[:max_total]
 
-# -----------------------------------------------------
-# Helper: Create pie chart SVG + thumbnail (base64)
-# -----------------------------------------------------
 def create_sentiment_pie_chart_svg(positive_count, negative_count, neutral_count):
     labels = []
     sizes = []
@@ -172,9 +151,6 @@ def create_sentiment_pie_chart_svg(positive_count, negative_count, neutral_count
 
     return svg_b64, thumb_b64
 
-# -----------------------------------------------------
-# MAIN ROUTE — YouTube Only + Sentiment Pie Chart
-# -----------------------------------------------------
 @app.route("/analyze_reviews", methods=["POST"])
 def analyze_reviews():
     data = request.get_json() or {}
@@ -247,8 +223,6 @@ def analyze_reviews():
     if negative: summary += "🔴 **Common complaints:**\n" + "\n".join([f"• {n}" for n in negative[:5]]) + "\n\n"
     if neutral:  summary += "⚪ **Neutral points:**\n" + "\n".join([f"• {n}" for n in neutral[:5]]) + "\n"
 
-    # Create sentiment pie chart (SVG base64 + thumbnail PNG base64)
-    # svg_b64, thumb_b64 = create_sentiment_pie_chart_svg(len(positive), len(negative), len(neutral))
 
     # Translate summary if requested
     if language != "en":
