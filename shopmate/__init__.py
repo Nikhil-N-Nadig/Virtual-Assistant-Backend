@@ -23,7 +23,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy()
 
 db.init_app(app)
-allowed_url="https://virtual-assistant-frontend-3sbii3l0f.vercel.app"
+allowed_url="https://virtual-shopmate.vercel.app"
 CORS(app,
      origins=["http://localhost:5173", "http://127.0.0.1:5173",allowed_url],
      supports_credentials=True,
