@@ -1,5 +1,5 @@
 from flask import request, jsonify, Response
-from shopmate import app, db, datetime
+from shopmate import app, db, datetime,allowed_url
 from shopmate.models import Message, Conversation
 from flask_cors import cross_origin
 
@@ -659,7 +659,7 @@ def stream_text_chunks(text, delay=0.04):
         time.sleep(delay)
 
 @app.route("/message_stream", methods=["POST"])
-@cross_origin(origins=["http://localhost:5173"])
+@cross_origin(origins=["http://localhost:5173",allowed_url])
 def send_message_stream():
     try:
         data = request.get_json()
@@ -698,7 +698,7 @@ def send_message_stream():
         return jsonify({"error": "Server error"}), 500
 
 @app.route("/message", methods=["POST"])
-@cross_origin(origins=["http://localhost:5173"])
+@cross_origin(origins=["http://localhost:5173",allowed_url])
 def send_message():
     try:
         data = request.get_json()

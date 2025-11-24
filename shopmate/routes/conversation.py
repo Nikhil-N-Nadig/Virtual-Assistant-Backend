@@ -4,7 +4,7 @@ from shopmate.models import Conversation, Message
 
 
 @app.route('/conversation', methods=['POST', 'OPTIONS'])
-@cross_origin(origins=["http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True)
+@cross_origin(origins=["http://localhost:5173", "http://127.0.0.1:5173",allowed_url], supports_credentials=True)
 def create_conversation():
     data = request.get_json() or {}
     title = data.get('title', 'New Conversation')
@@ -122,7 +122,7 @@ def delete_conversation(conversation_id):
 
 
 @app.route('/conversation/<int:conversation_id>', methods=['PUT'])
-@cross_origin(origins=["http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True)
+@cross_origin(origins=["http://localhost:5173", "http://127.0.0.1:5173",allowed_url], supports_credentials=True)
 def update_conversation(conversation_id):
     data = request.get_json() or {}
     new_title = data.get('title')
