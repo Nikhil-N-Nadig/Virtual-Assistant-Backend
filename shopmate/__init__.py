@@ -71,5 +71,5 @@ app.config['MAIL_USE_TLS'] = False
 app.config['MAIL_USE_SSL'] = True
 
 from shopmate.models import User,Conversation,Message,userpreference,reminder
-from shopmate.routes import signin,signup,verifyotp,conversation,message,recommend,compare_price,analyze_reviews,forgot_password,get_price,price_history
+from shopmate.routes import signin,signup,verifyotp,conversation,message,recommend,analyze_reviews,forgot_password,get_price,price_history
 from shopmate.utils import reminder_worker
