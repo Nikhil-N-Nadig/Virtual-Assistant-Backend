@@ -13,7 +13,7 @@ import os, time, json, traceback, re
 GEN_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEN_KEY)
 MODEL_NAME = "gemini-2.0-flash"
-API_URL = "http://localhost:5000"  
+API_URL = "https://virtual-assistant-backend-w7bm.onrender.com"  
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
 MEMORY_TURNS = 6
