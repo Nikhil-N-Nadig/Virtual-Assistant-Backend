@@ -1,5 +1,5 @@
 from flask import request, jsonify, Response
-from shopmate import app, db, datetime,allowed_url
+from shopmate import app, db, datetime
 from shopmate.models import Message, Conversation
 from flask_cors import cross_origin
 
@@ -82,17 +82,23 @@ forecast_decl = FunctionDeclaration(
 
 set_reminder_decl = FunctionDeclaration(
     name="set_reminder",
-    description="Creates an email reminder about products the user is viewing.",
+    description="Schedule a reminder for the user's recently viewed products.",
     parameters=Schema(
         type_="OBJECT",
         properties={
-            "products": Schema(type_="ARRAY", items=Schema(type_="OBJECT")),
-            "send_time": Schema(type_="STRING", description="ISO datetime in UTC"),
-            "note": Schema(type_="STRING")
+            "send_time": Schema(
+                type_="STRING",
+                description="Natural language time like 'in 10 minutes', 'after 2 hours', 'tomorrow at 6 PM'"
+            ),
+            "note": Schema(
+                type_="STRING",
+                description="Optional short note about the reminder"
+            )
         },
-        required=[ "send_time"]
+        required=["send_time"]
     )
 )
+
 
 
 
@@ -101,7 +107,7 @@ tools = [Tool(function_declarations=[recommend_decl, reviews_decl,get_price_decl
 print("Initializing Gemini model...")
 model = genai.GenerativeModel(model_name=MODEL_NAME, tools=tools)
 try:
-    model.generate_content("Hello.")  # prewarm
+    model.generate_content("Hello.")  
 except Exception as e:
     print("Gemini prewarm failed:", e)
 
@@ -167,7 +173,7 @@ def predict_future_price(product, future_days=60):
 
     return res if isinstance(res, dict) else {"success": False}
 
-def set_reminder(products,send_time=None, note=None):
+def set_reminder(send_time=None, note=None):
     from shopmate.models import Conversation, Message
     from shopmate import app, db
 
@@ -330,10 +336,11 @@ def generate_ai_response(user_msg, conversation_id, lang="en"):
     contents.append({"role": "user", "parts": [{"text": user_msg_en}]})
 
     system_preface = "User requests shopping or price info — prefer calling tools." if force_tool else ""
+
     try:
         payload = system_preface + "\n" + user_msg_en if system_preface else user_msg_en
         initial = model.generate_content(contents if contents else payload)
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
         return {"response": "⚠ Sorry — AI temporarily unavailable.", "products": []}
 
@@ -360,24 +367,26 @@ def generate_ai_response(user_msg, conversation_id, lang="en"):
             "price_prediction": None,
             "reviews": None
         }
+        # safe default
+        summary_text = "Here are the results."
 
-        # format results
-        if fname in ("recommend_products"):
-            # Extract products
+        # ------------------------------------------------------------------
+        # recommend_products
+        # ------------------------------------------------------------------
+        if fname in ("recommend_products",):
             products_raw = (
                 tool_result.get("recommendations")
                 or tool_result.get("results")
                 or []
             )
 
-            # Take top 5 results
             top_products = products_raw[:5]
 
             # Format cards for frontend
             summary_text, product_cards = format_products_for_user(top_products)
             result_payload["products"] = product_cards
 
-            # Create a detailed comparison summary for LLM
+            # LLM comparison summary
             llm_comparison_prompt = f"""
             You are an expert shopping assistant.
             Create a professional, concise comparison summary for the user.
@@ -403,21 +412,21 @@ def generate_ai_response(user_msg, conversation_id, lang="en"):
 
             try:
                 follow_up = model.generate_content(llm_comparison_prompt)
-                summary_text = follow_up.text.strip()
+                summary_text = (follow_up.text or "").strip()
             except Exception:
-                print("Calling exception")
+                print("LLM comparison exception")
 
-            result_payload["response"]=summary_text
+            result_payload["response"] = summary_text
 
-
+        # ------------------------------------------------------------------
+        # get_price
+        # ------------------------------------------------------------------
         elif fname == "get_price":
-            # Extract clean price list
             price_rows = tool_result.get("price_data") or []
 
             if not price_rows:
                 summary_text = "I couldn't find price details for this product."
             else:
-                # LLM Friendly Summary
                 llm_price_summary_prompt = f"""
                     You are an expert shopping assistant.
 
@@ -453,24 +462,23 @@ def generate_ai_response(user_msg, conversation_id, lang="en"):
 
                     Now use ONLY this data:
                     {json.dumps(price_rows, indent=2)}
-
-
                 """
 
                 try:
                     llm_resp = model.generate_content(llm_price_summary_prompt)
                     summary_text = (llm_resp.text or "").strip()
-                except:
+                except Exception:
                     summary_text = "Here is a quick overview of price differences across platforms."
 
-                # Format product cards cleanly (no links, no thumbnails)
-            result_payload["response"]=summary_text
+            result_payload["response"] = summary_text
 
-
+        # ------------------------------------------------------------------
+        # analyze_reviews
+        # ------------------------------------------------------------------
         elif fname == "analyze_reviews":
-            # Raw backend summary from API
             backend_summary = tool_result.get("response") or "Here are review insights."
 
+            # You can use review_data/counts if needed later
             review_data = tool_result.get("reviews") or {}
             counts = tool_result.get("counts", {})
 
@@ -494,13 +502,16 @@ def generate_ai_response(user_msg, conversation_id, lang="en"):
             try:
                 llm_resp = model.generate_content(llm_summary_prompt)
                 llm_summary = (llm_resp.text or "").strip()
-            except:
+            except Exception:
                 llm_summary = "Overall, customers shared a mixed experience based on the sentiment distribution."
 
-            result_payload["response"] = backend_summary + "\n\n" + llm_summary
-        
+            summary_text = backend_summary + "\n\n" + llm_summary
+            result_payload["response"] = summary_text
+
+        # ------------------------------------------------------------------
+        # get_price_history
+        # ------------------------------------------------------------------
         elif fname == "get_price_history":
-            # Extract synthetic history
             history_rows = tool_result.get("history") or []
             chart_svg = tool_result.get("svg_base64")
             chart_thumb = tool_result.get("thumb_base64")
@@ -509,9 +520,9 @@ def generate_ai_response(user_msg, conversation_id, lang="en"):
             product_name = tool_result.get("product")
 
             if not history_rows:
-                result_payload["response"] = "I couldn’t generate price history for this product."
+                summary_text = "I couldn’t generate price history for this product."
+                result_payload["response"] = summary_text
             else:
-                # LLM summary prompt
                 llm_history_prompt = f"""
                 You are an expert pricing analyst.
 
@@ -534,10 +545,10 @@ def generate_ai_response(user_msg, conversation_id, lang="en"):
                 try:
                     llm_resp = model.generate_content(llm_history_prompt)
                     summary_text = (llm_resp.text or "").strip()
-                except:
+                except Exception:
                     summary_text = "Here is the recent price trend for this product."
 
-                result_payload["response"]=summary_text
+                result_payload["response"] = summary_text
                 result_payload["price_history"] = {
                     "product": product_name,
                     "category": category,
@@ -547,32 +558,69 @@ def generate_ai_response(user_msg, conversation_id, lang="en"):
                     "thumb_base64": chart_thumb,
                     "llm_summary": summary_text
                 }
+
+        # ------------------------------------------------------------------
+        # set_reminder (time from system; products from backend)
+        # ------------------------------------------------------------------
         elif fname == "set_reminder":
-            result_payload["response"] = "Your reminder has been set! I’ll notify you at the scheduled time 😊"
+            # Tool output from backend
+            remind_output = tool_result or {}
 
-            # Extract data
-            remind_output = tool_result
+            # Create LLM follow-up prompt to keep conversation natural
+            llm_reminder_prompt = f"""
+            You are a smart reminder assistant.
 
-            # If tool failed
-            if not remind_output.get("success"):
-                result_payload["response"] = "⚠ I couldn't save the reminder."
+            The reminder has been processed by the system.
 
+            Write a friendly confirmation message to the user.
+
+            Rules:
+            - Do NOT mention system time or UTC.
+            - Keep it short and friendly.
+            - Reassure user that reminder will trigger at the requested time.
+            - No bullet points.
+
+            If the user wants to set a reminder:
+            - DO NOT ask about products.
+            - DO NOT ask the current time.
+            - ONLY ask for how long from now or when the reminder should trigger.
+            - Accept only phrases like:
+            "in 10 minutes", "after 2 hours", "tomorrow at 6PM".
+
+            Tool Result:
+            {json.dumps(remind_output, indent=2)}
+            """
+
+            try:
+                llm_resp = model.generate_content(llm_reminder_prompt)
+                summary_text = (llm_resp.text or "").strip()
+            except Exception:
+                summary_text = "✅ Your reminder has been set! I’ll notify you at the right time 😊"
+
+            result_payload["response"] = summary_text
+
+
+        # ------------------------------------------------------------------
+        # predict_future_price
+        # ------------------------------------------------------------------
         elif fname == "predict_future_price":
             predictions = tool_result.get("predictions") or []
             chart_svg = tool_result.get("chart_svg")
             chart_thumb = tool_result.get("chart_thumb")
             model_type = tool_result.get("model_used", "Hybrid Model")
-            product= tool_result.get("product"),
-            category= tool_result.get("category"),
-            history= tool_result.get("history"),
-            svg_base64= tool_result.get("svg_base64"),
-            png_base64= tool_result.get("png_base64"),
-            thumb_base64= tool_result.get("thumb_base64")
+
+            # FIXED: no trailing commas → not tuples
+            product = tool_result.get("product")
+            category = tool_result.get("category")
+            history = tool_result.get("history")
+            svg_base64 = tool_result.get("svg_base64")
+            png_base64 = tool_result.get("png_base64")
+            thumb_base64 = tool_result.get("thumb_base64")
 
             if not predictions:
-                result_payload["response"] = "I couldn't generate a future price forecast."
+                summary_text = "I couldn't generate a future price forecast."
+                result_payload["response"] = summary_text
             else:
-                # LLM summary prompt
                 llm_forecast_prompt = f"""
                 You are an expert price forecaster.
 
@@ -595,7 +643,7 @@ def generate_ai_response(user_msg, conversation_id, lang="en"):
                 try:
                     llm_resp = model.generate_content(llm_forecast_prompt)
                     summary_text = (llm_resp.text or "").strip()
-                except:
+                except Exception:
                     summary_text = "Here is your price forecast based on the trend."
 
                 result_payload["price_prediction"] = {
@@ -605,37 +653,61 @@ def generate_ai_response(user_msg, conversation_id, lang="en"):
                     "predictions": predictions,
                     "svg_base64": svg_base64,
                     "png_base64": png_base64,
-                    "thumb_base64":thumb_base64,
+                    "thumb_base64": thumb_base64,
                     "llm_summary": summary_text,
                     "model": model_type
                 }
+                result_payload["response"] = summary_text
 
-                result_payload["response"]=summary_text
-
+        # ------------------------------------------------------------------
+        # predict_price
+        # ------------------------------------------------------------------
         elif fname == "predict_price":
             summary_text, product_cards = format_price_prediction_for_user(tool_result, fargs)
             result_payload["response"] = summary_text
             result_payload["product"] = product_cards
-        else:
-            result_payload["response"] = "Here are the results."
 
-        # send tool result back to Gemini for friendly reply
+        # ------------------------------------------------------------------
+        # default
+        # ------------------------------------------------------------------
+        else:
+            summary_text = "Here are the results."
+            result_payload["response"] = summary_text
+
+        # --------------------------------------------------------------
+        # Follow-up LLM for friendly wording (for some tools only)
+        # --------------------------------------------------------------
         try:
-            if fname not in("recommend_products", "compare_prices","analyze_reviews","get_price","predict_future_price","get_price_history"):
+            if fname not in (
+                "recommend_products",
+                "compare_prices",
+                "analyze_reviews",
+                "get_price",
+                "predict_future_price",
+                "get_price_history",
+                "set_reminder"
+            ):
                 follow_up_contents = [
                     initial.candidates[0].content,
-                    {"role": "user", "parts": [{"function_response": {"name": fname, "response": tool_result}}]}
+                    {
+                        "role": "user",
+                        "parts": [{
+                            "function_response": {
+                                "name": fname,
+                                "response": tool_result
+                            }
+                        }]
+                    }
                 ]
                 follow_up = model.generate_content(follow_up_contents)
-                result_payload["response"] = follow_up.text.strip() if getattr(follow_up, "text", None) else summary_text
-            else:
-                result_payload["response"]=summary_text
+                if getattr(follow_up, "text", None):
+                    result_payload["response"] = follow_up.text.strip()
         except Exception as e:
             print("Follow-up failed:", e)
-            friendly = summary_text
+            # keep existing result_payload["response"]
 
         if orig_lang != "en":
-            friendly = translate_text(friendly, "en", orig_lang)
+            result_payload["response"] = translate_text(result_payload["response"], "en", orig_lang)
 
         return result_payload
 
@@ -659,7 +731,7 @@ def stream_text_chunks(text, delay=0.04):
         time.sleep(delay)
 
 @app.route("/message_stream", methods=["POST"])
-@cross_origin(origins=["http://localhost:5173",allowed_url])
+@cross_origin(origins=["http://localhost:5173"])
 def send_message_stream():
     try:
         data = request.get_json()
@@ -698,7 +770,7 @@ def send_message_stream():
         return jsonify({"error": "Server error"}), 500
 
 @app.route("/message", methods=["POST"])
-@cross_origin(origins=["http://localhost:5173",allowed_url])
+@cross_origin(origins=["http://localhost:5173"])
 def send_message():
     try:
         data = request.get_json()
